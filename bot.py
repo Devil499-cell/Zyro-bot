@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import httpx
+import asyncio
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -255,7 +256,6 @@ def clean_text(text):
     return text.strip()
 
 def mask_name(name):
-    """Mask name like P*****T B*********I"""
     if not name or name == "N/A":
         return "N/A"
     name = str(name)
@@ -273,11 +273,9 @@ def mask_name(name):
 # ===================== IP FORMATTER =====================
 
 def format_ip_response(data, term):
-    """Format IP API response into beautiful format"""
     if data.get("error"):
         return f"❌ *Error:* {data['error']}"
     
-    # Extract data
     result_data = data.get("data", {}).get("result", {})
     if not result_data:
         result_data = data
@@ -296,7 +294,6 @@ def format_ip_response(data, term):
     lon = result_data.get('lon', result_data.get('longitude', 'N/A'))
     timezone = clean_text(result_data.get('timezone', result_data.get('tz', 'N/A')))
     
-    # Build location string
     location_parts = []
     if city != "N/A":
         location_parts.append(city)
@@ -343,7 +340,6 @@ def format_ip_response(data, term):
 # ===================== VEHICLE FORMATTER =====================
 
 def format_vehicle_response(data, term):
-    """Format Vehicle API response into beautiful format"""
     if data.get("error"):
         return f"❌ *Error:* {data['error']}"
     
@@ -365,7 +361,8 @@ def format_vehicle_response(data, term):
     result = "🚗 *VEHICLE INFO*\n━━━━━━━━━━━━━━━━━━\n\n"
     result += f"🎯 *Vehicle:* `{vehicle_no}`\n\n"
     
-    result += f"👤 *Owner:* `{owner_name}`\n"
+    if owner_name != "N/A":
+        result += f"👤 *Owner:* `{owner_name}`\n"
     if maker_model != "N/A":
         result += f"🏭 *Model:* `{maker_model}`\n"
     if model_name != "N/A" and model_name != maker_model:
@@ -409,12 +406,14 @@ def format_aadhar_response(data, term):
     card_info = details.get("card_info", {})
     
     if card_info:
-        result += f"📄 *Ration Card ID:* `{card_info.get('Ration Card ID', 'N/A')}`\n"
-        result += f"🏠 *District:* `{card_info.get('District', 'N/A')}`\n"
-        result += f"📍 *State:* `{card_info.get('State', 'N/A')}`\n"
-        result += f"📋 *Card Type:* `{card_info.get('Card Type', 'N/A')}`\n"
-        result += f"🏪 *Home FPS:* `{card_info.get('Home FPS', 'N/A')}`\n"
-        result += f"📅 *Issue Date:* `{card_info.get('Issue Date', 'N/A')}`\n"
+        if card_info.get('Ration Card ID'):
+            result += f"📄 *Ration Card ID:* `{card_info.get('Ration Card ID')}`\n"
+        if card_info.get('District'):
+            result += f"🏠 *District:* `{card_info.get('District')}`\n"
+        if card_info.get('State'):
+            result += f"📍 *State:* `{card_info.get('State')}`\n"
+        if card_info.get('Card Type'):
+            result += f"📋 *Card Type:* `{card_info.get('Card Type')}`\n"
     
     members = details.get("members", [])
     if members:
@@ -424,12 +423,12 @@ def format_aadhar_response(data, term):
             result += f"👨 *Relation:* `{member.get('relationship', 'N/A')}`\n"
             result += f"⚥ *Gender:* `{member.get('gender', 'N/A')}`\n"
             result += f"🆔 *Masked UID:* `{member.get('uid_masked', 'N/A')}`\n"
-            result += f"📅 *Updated:* `{member.get('cr_last_updated', 'N/A')}`\n━━━━━━━━━━━━━━━━━━━━━\n"
+            result += f"━━━━━━━━━━━━━━━━━━━━━\n"
     
     result += f"\n⚡ *POWERED BY @Leader_jiii*"
     return result
 
-# ===================== OTHER FORMATTERS =====================
+# ===================== NUMBER FORMATTER =====================
 
 def format_number_response(data, term):
     if data.get("error"):
@@ -451,9 +450,13 @@ def format_number_response(data, term):
             result += f"👤 *Name:* `{clean_text(info.get('NAME', info.get('name', 'N/A')))}`\n"
             result += f"👨 *Father:* `{clean_text(info.get('fname', 'N/A'))}`\n"
             result += f"📱 *Mobile:* `{clean_text(info.get('MOBILE', info.get('mobile', 'N/A')))}`\n"
-            result += f"📞 *Alternate:* `{clean_text(info.get('alt', 'N/A'))}`\n"
-            result += f"📡 *Carrier:* `{clean_text(info.get('circle', 'N/A'))}`\n"
-            result += f"🏠 *Address:* `{clean_text(info.get('ADDRESS', info.get('address', 'N/A')))[:80]}`\n"
+            if info.get('alt'):
+                result += f"📞 *Alternate:* `{clean_text(info.get('alt'))}`\n"
+            if info.get('circle'):
+                result += f"📡 *Carrier:* `{clean_text(info.get('circle'))}`\n"
+            if info.get('address') or info.get('ADDRESS'):
+                addr = clean_text(info.get('ADDRESS', info.get('address', 'N/A')))
+                result += f"🏠 *Address:* `{addr[:80]}`\n"
             if info.get('id'):
                 result += f"🆔 *ID:* `{clean_text(info.get('id'))}`\n"
             result += f"━━━━━━━━━━━━━━━━━━━━━\n"
@@ -473,10 +476,14 @@ def format_tgnum_response(data, term):
     result_data = data.get("data", {}).get("result", {})
     
     if result_data:
-        result += f"📱 *Phone Number:* `{result_data.get('number', 'N/A')}`\n"
-        result += f"🌍 *Country:* `{result_data.get('country', 'N/A')}`\n"
-        result += f"📞 *Country Code:* `{result_data.get('country_code', 'N/A')}`\n"
-        result += f"💬 *Message:* `{result_data.get('msg', 'N/A')}`\n"
+        if result_data.get('number'):
+            result += f"📱 *Phone Number:* `{result_data.get('number')}`\n"
+        if result_data.get('country'):
+            result += f"🌍 *Country:* `{result_data.get('country')}`\n"
+        if result_data.get('country_code'):
+            result += f"📞 *Country Code:* `{result_data.get('country_code')}`\n"
+        if result_data.get('msg'):
+            result += f"💬 *Message:* `{result_data.get('msg')}`\n"
     else:
         result += f"❌ *No data found for Telegram ID:* `{term}`\n"
     
@@ -493,11 +500,16 @@ def format_gst_response(data, term):
     result_data = data.get("data", {}).get("result", {})
     
     if result_data:
-        result += f"🏭 *Business Name:* `{clean_text(result_data.get('business_name', result_data.get('name', 'N/A')))}`\n"
-        result += f"📛 *Trade Name:* `{clean_text(result_data.get('trade_name', 'N/A'))}`\n"
-        result += f"📅 *Registration Date:* `{clean_text(result_data.get('registration_date', 'N/A'))}`\n"
-        result += f"🗺️ *State:* `{clean_text(result_data.get('state', 'N/A'))}`\n"
-        result += f"✅ *Status:* `{clean_text(result_data.get('status', 'N/A'))}`\n"
+        if result_data.get('business_name') or result_data.get('name'):
+            result += f"🏭 *Business Name:* `{clean_text(result_data.get('business_name', result_data.get('name', 'N/A')))}`\n"
+        if result_data.get('trade_name'):
+            result += f"📛 *Trade Name:* `{clean_text(result_data.get('trade_name'))}`\n"
+        if result_data.get('registration_date'):
+            result += f"📅 *Registration Date:* `{clean_text(result_data.get('registration_date'))}`\n"
+        if result_data.get('state'):
+            result += f"🗺️ *State:* `{clean_text(result_data.get('state'))}`\n"
+        if result_data.get('status'):
+            result += f"✅ *Status:* `{clean_text(result_data.get('status'))}`\n"
     else:
         result += f"❌ *No data found for GST:* `{term}`\n"
     
@@ -514,13 +526,20 @@ def format_insta_response(data, term):
     result_data = data.get("data", {}).get("result", {})
     
     if result_data:
-        result += f"👤 *Full Name:* `{clean_text(result_data.get('full_name', 'N/A'))}`\n"
-        result += f"👥 *Followers:* `{result_data.get('followers', 0):,}`\n"
-        result += f"📌 *Following:* `{result_data.get('following', 0):,}`\n"
-        result += f"📷 *Posts:* `{result_data.get('posts', 0)}`\n"
-        result += f"🔒 *Private Account:* `{result_data.get('is_private', False)}`\n"
-        result += f"✅ *Verified:* `{result_data.get('is_verified', False)}`\n"
-        result += f"📝 *Bio:* `{clean_text(result_data.get('bio', 'N/A'))[:100]}`\n"
+        if result_data.get('full_name'):
+            result += f"👤 *Full Name:* `{clean_text(result_data.get('full_name'))}`\n"
+        if result_data.get('followers'):
+            result += f"👥 *Followers:* `{result_data.get('followers'):,}`\n"
+        if result_data.get('following'):
+            result += f"📌 *Following:* `{result_data.get('following'):,}`\n"
+        if result_data.get('posts'):
+            result += f"📷 *Posts:* `{result_data.get('posts')}`\n"
+        if result_data.get('is_private') is not None:
+            result += f"🔒 *Private Account:* `{result_data.get('is_private')}`\n"
+        if result_data.get('is_verified') is not None:
+            result += f"✅ *Verified:* `{result_data.get('is_verified')}`\n"
+        if result_data.get('bio'):
+            result += f"📝 *Bio:* `{clean_text(result_data.get('bio'))[:100]}`\n"
     else:
         result += f"❌ *No data found for Instagram:* `{term}`\n"
     
@@ -540,18 +559,31 @@ def format_ff_response(data, term):
         basic = result_data.get("basicInfo", {})
         clan = result_data.get("clanBasicInfo", {})
         
-        result += f"👤 *Nickname:* `{clean_text(basic.get('nickname', 'N/A'))}`\n"
-        result += f"📊 *Level:* `{basic.get('level', 'N/A')}`\n"
-        result += f"🌍 *Region:* `{clean_text(basic.get('region', 'N/A'))}`\n"
-        result += f"🏆 *Rank:* `{basic.get('rank', 'N/A')}`\n"
-        result += f"⭐ *Rank Points:* `{basic.get('rankingPoints', 'N/A')}`\n"
-        result += f"❤️ *Liked:* `{basic.get('liked', 0):,}`\n\n"
-        result += f"👥 *CLAN INFO*\n━━━━━━━━━━━━━━━━━━━━━\n"
-        result += f"📛 *Clan Name:* `{clean_text(clan.get('clanName', 'N/A'))}`\n"
-        result += f"📊 *Clan Level:* `{clan.get('clanLevel', 'N/A')}`\n"
-        result += f"👥 *Members:* `{clan.get('memberNum', 'N/A')}`\n\n"
-        result += f"📅 *Account Created:* `{basic.get('createAt', 'N/A')[:10]}`\n"
-        result += f"🕐 *Last Login:* `{basic.get('lastLoginAt', 'N/A')[:10]}`\n"
+        if basic.get('nickname'):
+            result += f"👤 *Nickname:* `{clean_text(basic.get('nickname'))}`\n"
+        if basic.get('level'):
+            result += f"📊 *Level:* `{basic.get('level')}`\n"
+        if basic.get('region'):
+            result += f"🌍 *Region:* `{clean_text(basic.get('region'))}`\n"
+        if basic.get('rank'):
+            result += f"🏆 *Rank:* `{basic.get('rank')}`\n"
+        if basic.get('rankingPoints'):
+            result += f"⭐ *Rank Points:* `{basic.get('rankingPoints')}`\n"
+        if basic.get('liked'):
+            result += f"❤️ *Liked:* `{basic.get('liked'):,}`\n"
+        
+        if clan.get('clanName'):
+            result += f"\n👥 *CLAN INFO*\n━━━━━━━━━━━━━━━━━━━━━\n"
+            result += f"📛 *Clan Name:* `{clean_text(clan.get('clanName'))}`\n"
+        if clan.get('clanLevel'):
+            result += f"📊 *Clan Level:* `{clan.get('clanLevel')}`\n"
+        if clan.get('memberNum'):
+            result += f"👥 *Members:* `{clan.get('memberNum')}`\n"
+        
+        if basic.get('createAt'):
+            result += f"\n📅 *Account Created:* `{basic.get('createAt')[:10]}`\n"
+        if basic.get('lastLoginAt'):
+            result += f"🕐 *Last Login:* `{basic.get('lastLoginAt')[:10]}`\n"
     else:
         result += f"❌ *No data found for FF ID:* `{term}`\n"
     
@@ -564,7 +596,8 @@ def format_sms_response(data, phone, message):
     
     result = "📱 *SMS RESULT*\n━━━━━━━━━━━━━━━━━━━━━\n\n"
     result += f"📞 *Phone Number:* `{phone}`\n"
-    result += f"📝 *Message:* `{message[:100]}{'...' if len(message) > 100 else ''}`\n"
+    msg_preview = message[:100] + "..." if len(message) > 100 else message
+    result += f"📝 *Message:* `{msg_preview}`\n"
     
     status = "SENT"
     if data.get("data") and data["data"].get("api_response"):
@@ -693,6 +726,26 @@ async def ip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if data.get("error"):
         await update.message.reply_text(f"❌ API Error: {data['error']}", parse_mode="Markdown")
         return
+    
+    # Check if data exists
+    result_data = data.get("data", {}).get("result", {})
+    if not result_data:
+        result_data = data
+    
+    # Check if any useful data
+    if not result_data or result_data.get("error") or (isinstance(result_data, dict) and len(result_data) <= 2):
+        await update.message.reply_text(
+            f"❌ *No data found for IP:* `{ip_addr}`\n\n"
+            f"💡 Possible reasons:\n"
+            f"• Invalid IP address\n"
+            f"• API limit exceeded\n"
+            f"• API service down\n\n"
+            f"📢 Try again later or use different IP.",
+            parse_mode="Markdown",
+            reply_markup=result_keyboard()
+        )
+        return
+    
     await update.message.reply_text(format_ip_response(data, ip_addr), parse_mode="Markdown", reply_markup=result_keyboard())
 
 async def insta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -759,6 +812,22 @@ async def vehicle_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data.get("error"):
         await update.message.reply_text(f"❌ API Error: {data['error']}", parse_mode="Markdown")
         return
+    
+    # Check if data exists
+    result_data = data.get("data", {}).get("result", {})
+    if not result_data or (isinstance(result_data, dict) and len(result_data) <= 1):
+        await update.message.reply_text(
+            f"❌ *No data found for vehicle:* `{vehicle_no}`\n\n"
+            f"💡 Possible reasons:\n"
+            f"• Invalid vehicle number\n"
+            f"• API limit exceeded\n"
+            f"• API service down\n\n"
+            f"📢 Try again later or use different vehicle number.",
+            parse_mode="Markdown",
+            reply_markup=result_keyboard()
+        )
+        return
+    
     await update.message.reply_text(format_vehicle_response(data, vehicle_no), parse_mode="Markdown", reply_markup=result_keyboard())
 
 async def sms_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -890,8 +959,11 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 # ===================== MAIN =====================
 
-def main() -> None:
+async def main_async():
+    """Async main for Railway deployment"""
     app = Application.builder().token(BOT_TOKEN).build()
+    
+    # Add all handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("num", num_command))
@@ -908,8 +980,24 @@ def main() -> None:
     app.add_handler(CommandHandler("unban", admin_unban))
     app.add_handler(CommandHandler("bcast", admin_broadcast))
     app.add_handler(CallbackQueryHandler(verify_callback, pattern="^verify_join$"))
-    logger.info("🤖 Bot is running...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    print("🤖 Bot is running on Railway...")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    
+    # Keep running
+    try:
+        await asyncio.Future()
+    except KeyboardInterrupt:
+        await app.stop()
 
 if __name__ == "__main__":
-    main()
+    try:
+        import uvloop
+        uvloop.install()
+    except:
+        pass
+    
+    print("🚀 Starting MODXPATEL Info Bot...")
+    asyncio.run(main_async())
