@@ -8,15 +8,17 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ================= CONFIGURATION =================
 BOT_TOKEN = "7527091387:AAGYxbCeX-JZDYdgcBt1etLmp0sPkdpAepc"
-ADMIN_PASSWORD = "#shashikumar"
+ADMIN_PASSWORD = "#zyro2000"
 DEVELOPER_USERNAME = "@Leader_jii"
 
-# Channel info (only for display - NO FORCE JOIN)
+# Channel info with FORCE JOIN for BOTH channels
 CHANNEL_1_NAME = "ALL ILLEGAL STUFFS"
-CHANNEL_1_LINK = "https://t.me/+-wTiagx9CCljM2M1"
+CHANNEL_1_LINK = "https://t.me/ajaaobkl"
+CHANNEL_1_USERNAME = "ajaaobkl"
 
 CHANNEL_2_NAME = "MOD X PATEL"
 CHANNEL_2_LINK = "https://t.me/Mod_x_patel"
+CHANNEL_2_USERNAME = "Mod_x_patel"
 
 # APIs
 UNIVERSAL_API = "https://all-sigma-pad-api-damo-5-day.vercel.app/api"
@@ -30,6 +32,7 @@ user_data = {}
 admin_session = {}
 trending_numbers = {}
 waiting_for_input = {}
+pending_admin_login = {}  # Track users waiting to enter password
 
 # ============ HEALTH SERVER ============
 class HealthHandler(BaseHTTPRequestHandler):
@@ -95,6 +98,81 @@ def edit_message(chat_id, message_id, text, reply_markup=None):
         requests.post(url, json=payload, timeout=15)
     except:
         pass
+
+# ============ FORCE JOIN CHECK FOR BOTH CHANNELS ============
+def check_force_join_both(chat_id):
+    """Check if user has joined BOTH required channels"""
+    try:
+        # Check Channel 1
+        url1 = f"{BASE_URL}/getChatMember"
+        payload1 = {
+            "chat_id": f"@{CHANNEL_1_USERNAME}",
+            "user_id": chat_id
+        }
+        response1 = requests.post(url1, json=payload1, timeout=10)
+        
+        # Check Channel 2
+        url2 = f"{BASE_URL}/getChatMember"
+        payload2 = {
+            "chat_id": f"@{CHANNEL_2_USERNAME}",
+            "user_id": chat_id
+        }
+        response2 = requests.post(url2, json=payload2, timeout=10)
+        
+        channel1_joined = False
+        channel2_joined = False
+        
+        if response1.status_code == 200:
+            data1 = response1.json()
+            if data1.get("ok"):
+                status1 = data1.get("result", {}).get("status", "")
+                if status1 in ["member", "administrator", "creator"]:
+                    channel1_joined = True
+        
+        if response2.status_code == 200:
+            data2 = response2.json()
+            if data2.get("ok"):
+                status2 = data2.get("result", {}).get("status", "")
+                if status2 in ["member", "administrator", "creator"]:
+                    channel2_joined = True
+        
+        return channel1_joined, channel2_joined
+    except Exception as e:
+        print(f"Force join check error: {e}")
+        return False, False
+
+def send_force_join_message(chat_id, channel1_joined=False, channel2_joined=False):
+    """Send message asking user to join both channels"""
+    
+    # Build status message
+    status_msg = ""
+    buttons = []
+    
+    if not channel1_joined:
+        status_msg += f"\n❌ {CHANNEL_1_NAME} - Not joined"
+        buttons.append([{"text": f"📢 JOIN {CHANNEL_1_NAME}", "url": CHANNEL_1_LINK}])
+    else:
+        status_msg += f"\n✅ {CHANNEL_1_NAME} - Joined"
+    
+    if not channel2_joined:
+        status_msg += f"\n❌ {CHANNEL_2_NAME} - Not joined"
+        buttons.append([{"text": f"📢 JOIN {CHANNEL_2_NAME}", "url": CHANNEL_2_LINK}])
+    else:
+        status_msg += f"\n✅ {CHANNEL_2_NAME} - Joined"
+    
+    buttons.append([{"text": "✅ Check Membership", "callback_data": "check_membership"}])
+    
+    keyboard = {
+        "inline_keyboard": buttons
+    }
+    
+    msg = (
+        f"⚠️ <b>ACCESS DENIED</b> ⚠️\n\n"
+        f"You must join BOTH channels to use this bot!\n\n"
+        f"📢 <b>Channels Status:</b>{status_msg}\n\n"
+        f"👇 <b>Join both channels and click CHECK</b>"
+    )
+    send_msg(chat_id, msg, reply_markup=keyboard, parse_mode="HTML")
 
 # ============ DATA MANAGEMENT ============
 def save_data():
@@ -551,6 +629,22 @@ def format_full_email_result(data, term):
     return result
 
 # ============ ADMIN FUNCTIONS ============
+def show_admin_menu(chat_id):
+    """Show admin menu with all options"""
+    keyboard = {
+        "inline_keyboard": [
+            [{"text": "📊 Dashboard", "callback_data": "admin_dashboard"}],
+            [{"text": "👥 Users List", "callback_data": "admin_users"}],
+            [{"text": "📜 Search History", "callback_data": "admin_history"}],
+            [{"text": "🔥 Trending", "callback_data": "admin_trending"}],
+            [{"text": "🗑️ Remove User", "callback_data": "admin_remove"}],
+            [{"text": "📢 Broadcast", "callback_data": "admin_broadcast"}],
+            [{"text": "🚪 Logout", "callback_data": "admin_logout"}]
+        ]
+    }
+    msg = f"🔐 <b>ADMIN PANEL</b>\n━━━━━━━━━━━━━━━━━━\n\nWelcome to admin panel!\n\nSelect an option below:"
+    send_msg(chat_id, msg, reply_markup=keyboard, parse_mode="HTML")
+
 def show_dashboard(chat_id):
     total_users = len(user_data)
     total_searches = sum(len(u.get("searches", [])) for u in user_data.values())
@@ -561,10 +655,12 @@ def show_dashboard(chat_id):
     msg += f"📊 Trending Numbers: {len(trending_numbers)}\n"
     msg += f"\n⚡ POWERED BY @Leader_jii"
     send_msg(chat_id, msg)
+    show_admin_menu(chat_id)
 
 def show_users(chat_id):
     if not user_data:
         send_msg(chat_id, "❌ No users found!")
+        show_admin_menu(chat_id)
         return
     
     msg = "👥 USER LIST\n━━━━━━━━━━━━━━━━━━\n\n"
@@ -578,6 +674,7 @@ def show_users(chat_id):
     
     msg += f"\n⚡ POWERED BY @Leader_jii"
     send_msg(chat_id, msg)
+    show_admin_menu(chat_id)
 
 def show_all_history(chat_id):
     all_searches = []
@@ -592,6 +689,7 @@ def show_all_history(chat_id):
         send_msg(chat_id, msg)
     else:
         send_msg(chat_id, "❌ No history found!")
+    show_admin_menu(chat_id)
 
 def get_trending():
     if not trending_numbers:
@@ -614,10 +712,12 @@ def remove_user(chat_id, target_id):
         send_msg(chat_id, f"✅ Removed user '{name}'!")
     else:
         send_msg(chat_id, f"❌ User {target} not found!")
+    show_admin_menu(chat_id)
 
 def broadcast_msg(chat_id, msg_text):
     if not user_data:
         send_msg(chat_id, "❌ No users found!")
+        show_admin_menu(chat_id)
         return
     
     send_msg(chat_id, f"⏳ Sending to {len(user_data)} users...")
@@ -632,6 +732,7 @@ def broadcast_msg(chat_id, msg_text):
             pass
     
     send_msg(chat_id, f"✅ Sent to {sent}/{len(user_data)} users")
+    show_admin_menu(chat_id)
 
 # ============ SMS FLOW ============
 def handle_sms_command(chat_id, text):
@@ -733,9 +834,50 @@ def handle_ration_command(chat_id, aadhaar):
     result = call_universal_api("AADHAAR", aadhaar)
     send_msg(chat_id, format_ration_result(result, aadhaar))
 
-# ============ MAIN HANDLER - FIXED FOR GROUP ============
+# ============ MAIN HANDLER ============
 def handle_update(update):
     global OFFSET
+    
+    # Handle callback queries
+    if "callback_query" in update:
+        callback = update["callback_query"]
+        callback_id = callback["id"]
+        chat_id = callback["message"]["chat"]["id"]
+        data = callback.get("data", "")
+        
+        if data == "check_membership":
+            c1_joined, c2_joined = check_force_join_both(chat_id)
+            if c1_joined and c2_joined:
+                send_callback(chat_id, "✅ Both channels joined! You can now use the bot.", callback_id)
+                send_msg(chat_id, "✅ <b>Access Granted!</b>\n\nYou can now use all bot features.\n\nType /help to see commands.", parse_mode="HTML")
+            else:
+                send_callback(chat_id, "❌ Please join both channels first!", callback_id)
+                send_force_join_message(chat_id, c1_joined, c2_joined)
+            return
+        
+        # Admin callback handlers
+        if data == "admin_dashboard":
+            show_dashboard(chat_id)
+        elif data == "admin_users":
+            show_users(chat_id)
+        elif data == "admin_history":
+            show_all_history(chat_id)
+        elif data == "admin_trending":
+            send_msg(chat_id, get_trending())
+            show_admin_menu(chat_id)
+        elif data == "admin_remove":
+            send_msg(chat_id, "🗑️ Send user ID to remove:\nType /cancel to cancel")
+            admin_session[str(chat_id)] = {"remove_mode": True}
+        elif data == "admin_broadcast":
+            send_msg(chat_id, "📢 Send message to broadcast:\nType /cancel to cancel")
+            admin_session[str(chat_id)] = {"broadcast_mode": True}
+        elif data == "admin_logout":
+            if str(chat_id) in admin_session:
+                del admin_session[str(chat_id)]
+            send_msg(chat_id, "👋 Logged out from admin!")
+        
+        send_callback(chat_id, "", callback_id)
+        return
     
     if "message" not in update:
         return
@@ -749,26 +891,65 @@ def handle_update(update):
     user_id = msg.get("from", {}).get("id", 0)
     user_info = msg.get("chat", {})
     
-    print(f"📨 {user_info.get('first_name', 'User')} | {text[:50]}")
+    print(f"📨 {user_info.get('first_name', 'User')} | {text[:50] if text else 'No text'}")
     
-    # ============ GROUP HANDLER - ONLY RESPOND TO COMMANDS ============
-    # Check if it's a group (negative chat_id) or supergroup
-    if chat_id < 0:
-        # In group, only respond if message starts with /
-        if not text.startswith("/"):
-            return  # Ignore non-command messages in groups
-        
-        # Also check if bot is mentioned (for commands without /)
-        bot_username = "InfoBot"  # Change to your bot's username
-        if bot_username.lower() in text.lower():
-            # Remove @mention from command
-            text = text.split()[0].replace(f"@{bot_username}", "")
+    # ============ GROUP HANDLER - IGNORE NON-COMMAND MESSAGES ============
+    is_group = chat_id < 0
+    
+    if is_group:
+        # In groups, ONLY respond to messages that start with /
+        if not text or not text.startswith("/"):
+            return  # Silently ignore non-command messages in groups
+    
+    # ============ FORCE JOIN CHECK (only for private chats OR command messages) ============
+    # For groups: Only check force join if it's a command
+    # For private: Always check force join
+    if not is_group or (is_group and text and text.startswith("/")):
+        # Skip force join for admin login and /admin command
+        if text != ADMIN_PASSWORD and text != "/admin" and not text.startswith("/admin "):
+            c1_joined, c2_joined = check_force_join_both(user_id)
+            if not (c1_joined and c2_joined):
+                send_force_join_message(chat_id, c1_joined, c2_joined)
+                return
     
     # ============ UPDATE STATS ============
     update_stats(chat_id, user_info)
     admin = is_admin(chat_id)
     
+    # ============ HANDLE PENDING ADMIN LOGIN ============
+    if str(chat_id) in pending_admin_login:
+        if text == ADMIN_PASSWORD:
+            admin_session[str(chat_id)] = {}
+            del pending_admin_login[str(chat_id)]
+            send_msg(chat_id, "✅ <b>Admin access granted!</b>\n\nWelcome to admin panel!", parse_mode="HTML")
+            show_admin_menu(chat_id)
+        else:
+            send_msg(chat_id, f"❌ Wrong password!\n\nAccess denied.")
+            del pending_admin_login[str(chat_id)]
+        return
+    
     # ============ COMMAND HANDLING ============
+    # Admin command - ask for password first
+    if text == "/admin":
+        if admin:
+            show_admin_menu(chat_id)
+        else:
+            pending_admin_login[str(chat_id)] = True
+            send_msg(chat_id, "🔐 <b>ADMIN LOGIN</b>\n━━━━━━━━━━━━━━━━━━\n\nPlease enter the admin password to continue.\n\nType /cancel to cancel.", parse_mode="HTML")
+        return
+    
+    # Cancel admin login
+    if text == "/cancel" and str(chat_id) in pending_admin_login:
+        del pending_admin_login[str(chat_id)]
+        send_msg(chat_id, "❌ Login cancelled!")
+        return
+    
+    # Hidden admin login via direct password (for backward compatibility)
+    if text == ADMIN_PASSWORD and not admin:
+        admin_session[str(chat_id)] = {}
+        send_msg(chat_id, "✅ <b>Admin access granted!</b>\n\nType /admin to open admin panel.", parse_mode="HTML")
+        return
+    
     # SMS Command
     if text.startswith("/sms"):
         cmd_parts = text.split(maxsplit=2)
@@ -855,82 +1036,60 @@ def handle_update(update):
             send_msg(chat_id, "❌ Usage: /ration 123412341234")
         return
     
-    # ============ HIDDEN ADMIN LOGIN ============
-    elif text == ADMIN_PASSWORD and not admin:
-        admin_session[str(chat_id)] = {}
-        send_msg(chat_id, "✅ Admin access granted!")
-        return
-    
-    # ============ HIDDEN ADMIN COMMANDS ============
-    elif admin:
-        if text == "/stats":
-            show_dashboard(chat_id)
-        elif text == "/users":
-            show_users(chat_id)
-        elif text == "/history":
-            show_all_history(chat_id)
-        elif text == "/trending":
-            send_msg(chat_id, get_trending())
-        elif text == "/remove":
-            send_msg(chat_id, "🗑️ Send user ID to remove:\nType /cancel")
-            admin_session[str(chat_id)] = {"remove_mode": True}
-        elif text == "/broadcast":
-            send_msg(chat_id, "📢 Send message to broadcast:\nType /cancel")
-            admin_session[str(chat_id)] = {"broadcast_mode": True}
-        elif text == "/exit":
-            if str(chat_id) in admin_session:
-                del admin_session[str(chat_id)]
-            send_msg(chat_id, "👋 Logged out!")
-        elif text == "/cancel" and admin_session.get(str(chat_id), {}).get("remove_mode"):
-            admin_session[str(chat_id)]["remove_mode"] = False
-            send_msg(chat_id, "❌ Cancelled!")
-        elif text == "/cancel" and admin_session.get(str(chat_id), {}).get("broadcast_mode"):
-            admin_session[str(chat_id)]["broadcast_mode"] = False
-            send_msg(chat_id, "❌ Cancelled!")
-    
     # ============ ADMIN MODES ============
     if admin and admin_session.get(str(chat_id), {}).get("remove_mode"):
-        if text and text.isdigit():
+        if text == "/cancel":
+            admin_session[str(chat_id)]["remove_mode"] = False
+            send_msg(chat_id, "❌ Cancelled!")
+            show_admin_menu(chat_id)
+        elif text and text.isdigit():
             remove_user(chat_id, text)
             admin_session[str(chat_id)]["remove_mode"] = False
         return
     
     if admin and admin_session.get(str(chat_id), {}).get("broadcast_mode"):
-        if text and text != "/cancel":
+        if text == "/cancel":
+            admin_session[str(chat_id)]["broadcast_mode"] = False
+            send_msg(chat_id, "❌ Cancelled!")
+            show_admin_menu(chat_id)
+        elif text:
             broadcast_msg(chat_id, text)
             admin_session[str(chat_id)]["broadcast_mode"] = False
         return
     
-    # ============ DIRECT NUMBER INPUT ============
-    if text and text.isdigit() and len(text) == 10:
+    # ============ DIRECT NUMBER INPUT (PRIVATE CHAT ONLY) ============
+    if not is_group and text and text.isdigit() and len(text) == 10:
         handle_num_command(chat_id, text)
         return
     
     # ============ HELP / START ============
     if text == "/start" or text == "/help":
         welcome_msg = (
-            f"🎉 *WELCOME TO INFO BOT!* 🎉\n\n"
-            f"📱 *MULTI INFO BOT*\n\n"
-            f"✨ *Available Commands:*\n\n"
-            f"📞 `/num 9876543210` - Mobile number info\n"
-            f"🌐 `/ip 8.8.8.8` - IP address details\n"
-            f"🚗 `/vehicle GJ08CJ7132` - Vehicle info\n"
-            f"📱 `/tgnum 8490678882` - TG ID to number\n"
-            f"📧 `/email test@gmail.com` - Email lookup\n"
-            f"📦 `/gst 22AAAAA0000A1Z` - GST info\n"
-            f"🏦 `/ifsc SBIN0000001` - IFSC lookup\n"
-            f"🪪 `/ration 123412341234` - Ration card\n"
-            f"📱 `/sms 9876543210 Hello` - Send SMS\n"
-            f"📚 `/full [query]` - All records\n\n"
-            f"📌 *Send any 10-digit number directly!*\n\n"
-            f"⚡ *Powered by @Leader_jii*"
+            f"🎉 <b>WELCOME TO INFO BOT!</b> 🎉\n\n"
+            f"📱 <b>MULTI INFO BOT</b>\n\n"
+            f"✨ <b>Available Commands:</b>\n\n"
+            f"📞 <code>/num 9876543210</code> - Mobile number info\n"
+            f"🌐 <code>/ip 8.8.8.8</code> - IP address details\n"
+            f"🚗 <code>/vehicle GJ08CJ7132</code> - Vehicle info\n"
+            f"📱 <code>/tgnum 8490678882</code> - TG ID to number\n"
+            f"📧 <code>/email test@gmail.com</code> - Email lookup\n"
+            f"📦 <code>/gst 22AAAAA0000A1Z</code> - GST info\n"
+            f"🏦 <code>/ifsc SBIN0000001</code> - IFSC lookup\n"
+            f"🪪 <code>/ration 123412341234</code> - Ration card\n"
+            f"📱 <code>/sms 9876543210 Hello</code> - Send SMS\n"
+            f"📚 <code>/full [query]</code> - All records\n\n"
+            f"📌 <b>Send any 10-digit number directly in private chat!</b>\n\n"
+            f"⚡ <b>Powered by @Leader_jii</b>"
         )
-        send_msg(chat_id, welcome_msg)
+        send_msg(chat_id, welcome_msg, parse_mode="HTML")
         return
     
     # ============ IGNORE ANYTHING ELSE IN GROUPS ============
-    # Only reply in private chats for invalid commands
-    if chat_id > 0 and text and not text.startswith("/"):
+    if is_group:
+        return  # Silently ignore any non-command messages in groups
+    
+    # For private chat - unknown command
+    if text and not text.startswith("/"):
         send_msg(chat_id, "❌ Invalid command!\n\nType /help to see available commands.")
 
 # ============ MAIN ============
@@ -945,8 +1104,13 @@ def main():
     print(f"👨‍💻 Powered by: {DEVELOPER_USERNAME}")
     print(f"🔐 Admin Password: {ADMIN_PASSWORD}")
     print("=" * 60)
-    print("📌 Bot now works in groups - only responds to commands")
-    print("📌 Random messages in groups are ignored")
+    print("📌 FORCE JOIN ENABLED FOR BOTH CHANNELS:")
+    print(f"   1. {CHANNEL_1_NAME} - {CHANNEL_1_LINK}")
+    print(f"   2. {CHANNEL_2_NAME} - {CHANNEL_2_LINK}")
+    print("=" * 60)
+    print("📌 Admin Access: Type /admin and enter password: #zyro2000")
+    print("📌 GROUPS: Bot only responds to commands (messages starting with /)")
+    print("📌 Normal messages in groups are IGNORED")
     print("=" * 60)
     
     global OFFSET
