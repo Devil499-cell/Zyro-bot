@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+UNIVERSAL INFO BOT
+Powered by @LEADER_JII
+Force Join: @modxpatel & @ajaaobkl
+"""
+
 import requests
 import json
 import time
@@ -5,38 +12,29 @@ from datetime import datetime
 import os
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib3
-import warnings
-
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-warnings.filterwarnings('ignore')
 
 # ================= CONFIGURATION =================
-BOT_TOKEN = "7527091387:AAGYxbCeX-JZDYdgcBt1etLmp0sPkdpAepc"
-ADMIN_PASSWORD = "#zyro2000"
-DEVELOPER_USERNAME = "@LEADER_JIIII"
+BOT_TOKEN = "8757635805:AAGhawULq3hocLx7-bPCsiIVs5k2e5bV-EU"
+DEVELOPER_USERNAME = "@LEADER_JII"
 
-# Channel info with FORCE JOIN for BOTH channels
-CHANNEL_1_NAME = "ALL ILLEGAL STUFFS"
-CHANNEL_1_LINK = "https://t.me/ajaaobkl"
-CHANNEL_1_USERNAME = "ajaaobkl"
+# API Configuration
+API_BASE_URL = "https://all-sigma-pad-api-damo-5-day.vercel.app/api"
+API_KEY = "RAJAN99"
 
-CHANNEL_2_NAME = "MOD X PATEL"
-CHANNEL_2_LINK = "https://t.me/Mod_x_patel"
-CHANNEL_2_USERNAME = "Mod_x_patel"
+# Channel info for FORCE JOIN
+CHANNEL_1_NAME = "MOD X PATEL"
+CHANNEL_1_LINK = "https://t.me/modxpatel"
+CHANNEL_1_USERNAME = "modxpatel"
 
-# Number API 
-NUMBER_API_URL = "https://number-info-api-a5va.vercel.app/api"
+CHANNEL_2_NAME = "ALL ILLEGAL STUFFS"
+CHANNEL_2_LINK = "https://t.me/ajaaobkl"
+CHANNEL_2_USERNAME = "ajaaobkl"
 # =================================================
 
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 OFFSET = 0
 
 user_data = {}
-admin_session = {}
-trending_numbers = {}
-pending_admin_login = {}
 
 # ============ HEALTH SERVER ============
 class HealthHandler(BaseHTTPRequestHandler):
@@ -51,7 +49,7 @@ def run_health_server():
     HTTPServer(('0.0.0.0', port), HealthHandler).serve_forever()
 
 # ============ SEND MESSAGE ============
-def send_msg(chat_id, text, reply_markup=None, parse_mode="HTML"):
+def send_msg(chat_id, text, reply_markup=None, parse_mode="HTML", reply_to=None):
     url = f"{BASE_URL}/sendMessage"
     
     try:
@@ -63,21 +61,37 @@ def send_msg(chat_id, text, reply_markup=None, parse_mode="HTML"):
         "chat_id": chat_id,
         "text": text,
         "parse_mode": parse_mode,
-        "allow_sending_without_reply": True,
-        "disable_web_page_preview": True
+        "disable_web_page_preview": True,
+        "allow_sending_without_reply": True
     }
     if reply_markup:
         payload["reply_markup"] = json.dumps(reply_markup)
+    if reply_to:
+        payload["reply_to_message_id"] = reply_to
     
     try:
         response = requests.post(url, json=payload, timeout=30)
         if response.status_code == 200:
             return response.json()
-        else:
-            return None
+        return None
     except Exception as e:
         print(f"Error: {e}")
         return None
+
+def edit_msg(chat_id, msg_id, text, reply_markup=None):
+    url = f"{BASE_URL}/editMessageText"
+    payload = {
+        "chat_id": chat_id,
+        "message_id": msg_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    if reply_markup:
+        payload["reply_markup"] = json.dumps(reply_markup)
+    try:
+        requests.post(url, json=payload, timeout=15)
+    except:
+        pass
 
 def send_callback(chat_id, text, callback_id):
     url = f"{BASE_URL}/answerCallbackQuery"
@@ -87,369 +101,397 @@ def send_callback(chat_id, text, callback_id):
     except:
         pass
 
-def edit_message(chat_id, message_id, text, reply_markup=None):
-    url = f"{BASE_URL}/editMessageText"
-    payload = {
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-    if reply_markup:
-        payload["reply_markup"] = json.dumps(reply_markup)
-    
+# ============ FORCE JOIN CHECK ============
+def check_channel_join(user_id, channel_username):
     try:
-        requests.post(url, json=payload, timeout=15)
+        url = f"{BASE_URL}/getChatMember"
+        payload = {"chat_id": f"@{channel_username}", "user_id": user_id}
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("ok"):
+                status = data.get("result", {}).get("status", "")
+                if status in ["member", "administrator", "creator"]:
+                    return True
+        return False
     except:
-        pass
+        return False
 
-# ============ FORCE JOIN CHECK FOR BOTH CHANNELS ============
-def check_force_join_both(chat_id):
-    """Check if user has joined BOTH required channels"""
-    try:
-        url1 = f"{BASE_URL}/getChatMember"
-        payload1 = {
-            "chat_id": f"@{CHANNEL_1_USERNAME}",
-            "user_id": chat_id
-        }
-        response1 = requests.post(url1, json=payload1, timeout=10)
-        
-        url2 = f"{BASE_URL}/getChatMember"
-        payload2 = {
-            "chat_id": f"@{CHANNEL_2_USERNAME}",
-            "user_id": chat_id
-        }
-        response2 = requests.post(url2, json=payload2, timeout=10)
-        
-        channel1_joined = False
-        channel2_joined = False
-        
-        if response1.status_code == 200:
-            data1 = response1.json()
-            if data1.get("ok"):
-                status1 = data1.get("result", {}).get("status", "")
-                if status1 in ["member", "administrator", "creator"]:
-                    channel1_joined = True
-        
-        if response2.status_code == 200:
-            data2 = response2.json()
-            if data2.get("ok"):
-                status2 = data2.get("result", {}).get("status", "")
-                if status2 in ["member", "administrator", "creator"]:
-                    channel2_joined = True
-        
-        return channel1_joined, channel2_joined
-    except Exception as e:
-        print(f"Force join check error: {e}")
-        return False, False
+def check_both_channels(user_id):
+    c1 = check_channel_join(user_id, CHANNEL_1_USERNAME)
+    c2 = check_channel_join(user_id, CHANNEL_2_USERNAME)
+    return c1, c2
 
-def send_force_join_message(chat_id, channel1_joined=False, channel2_joined=False):
-    status_msg = ""
+def get_force_join_keyboard(c1_joined=False, c2_joined=False):
     buttons = []
     
-    if not channel1_joined:
-        status_msg += f"\n❌ {CHANNEL_1_NAME} - Not joined"
+    if not c1_joined:
         buttons.append([{"text": f"📢 JOIN {CHANNEL_1_NAME}", "url": CHANNEL_1_LINK}])
-    else:
-        status_msg += f"\n✅ {CHANNEL_1_NAME} - Joined"
-    
-    if not channel2_joined:
-        status_msg += f"\n❌ {CHANNEL_2_NAME} - Not joined"
+    if not c2_joined:
         buttons.append([{"text": f"📢 JOIN {CHANNEL_2_NAME}", "url": CHANNEL_2_LINK}])
+    
+    buttons.append([{"text": "✅ CHECK MEMBERSHIP", "callback_data": "verify_join"}])
+    
+    return {"inline_keyboard": buttons}
+
+def send_force_join_message(chat_id, c1_joined, c2_joined):
+    status_msg = ""
+    
+    if c1_joined:
+        status_msg += f"\n✅ {CHANNEL_1_NAME} - Joined"
     else:
+        status_msg += f"\n❌ {CHANNEL_1_NAME} - Not joined"
+    
+    if c2_joined:
         status_msg += f"\n✅ {CHANNEL_2_NAME} - Joined"
-    
-    buttons.append([{"text": "✅ Check Membership", "callback_data": "check_membership"}])
-    
-    keyboard = {
-        "inline_keyboard": buttons
-    }
-    
-    msg = (
-        f"⚠️ <b>ACCESS DENIED</b> ⚠️\n\n"
-        f"You must join BOTH channels to use this bot!\n\n"
-        f"📢 <b>Channels Status:</b>{status_msg}\n\n"
-        f"👇 <b>Join both channels and click CHECK</b>"
-    )
-    send_msg(chat_id, msg, reply_markup=keyboard, parse_mode="HTML")
-
-# ============ DATA MANAGEMENT ============
-def save_data():
-    try:
-        with open("user_data.json", "w") as f:
-            json.dump(user_data, f, indent=2)
-        with open("trending.json", "w") as f:
-            json.dump(trending_numbers, f, indent=2)
-    except:
-        pass
-
-def load_data():
-    global user_data, trending_numbers
-    try:
-        with open("user_data.json", "r") as f:
-            user_data = json.load(f)
-    except:
-        user_data = {}
-    try:
-        with open("trending.json", "r") as f:
-            trending_numbers = json.load(f)
-    except:
-        trending_numbers = {}
-
-def is_admin(chat_id):
-    return str(chat_id) in admin_session
-
-def get_display_name(user_info):
-    first_name = user_info.get("first_name", "")
-    last_name = user_info.get("last_name", "")
-    username = user_info.get("username", "")
-    
-    if first_name and last_name:
-        full_name = f"{first_name} {last_name}"
-    elif first_name:
-        full_name = first_name
-    elif username:
-        full_name = username
     else:
-        full_name = "User"
+        status_msg += f"\n❌ {CHANNEL_2_NAME} - Not joined"
     
-    if username and username != full_name and username not in full_name:
-        return f"{full_name} (@{username})"
-    return full_name
+    msg = f"⚠️ <b>ACCESS DENIED</b> ⚠️\n\nYou must join BOTH channels to use this bot!\n\n📢 <b>Channels Status:</b>{status_msg}\n\n👇 Click below to join and then verify."
+    
+    send_msg(chat_id, msg, get_force_join_keyboard(c1_joined, c2_joined))
 
-def update_stats(chat_id, user_info, search_term=None):
-    cid = str(chat_id)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    first_name = user_info.get("first_name", "")
-    last_name = user_info.get("last_name", "")
-    username = user_info.get("username", "")
-    display_name = get_display_name(user_info)
-    
-    if cid not in user_data:
-        user_data[cid] = {
-            "first_name": first_name,
-            "last_name": last_name,
-            "username": username,
-            "display_name": display_name,
-            "searches": [],
-            "joined": now,
-            "last_active": now
-        }
-        print(f"✅ New user: {display_name}")
-    else:
-        if not user_data[cid].get("display_name") or user_data[cid].get("display_name") == "User":
-            user_data[cid]["first_name"] = first_name
-            user_data[cid]["last_name"] = last_name
-            user_data[cid]["username"] = username
-            user_data[cid]["display_name"] = display_name
-        user_data[cid]["last_active"] = now
-    
-    if search_term:
-        user_data[cid]["searches"].append({
-            "term": search_term,
-            "time": now
-        })
-        trending_numbers[search_term] = trending_numbers.get(search_term, 0) + 1
-    
-    save_data()
-
-# ============ NUMBER API CALL WITH DEBUG ============
-def call_number_api(number):
+# ============ API CALL ============
+def call_api(api_type, term):
     try:
-        url = f"{NUMBER_API_URL}?number={number}"
-        print(f"📡 API Call: {url}")
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        # SSL verification disable with timeout
-        resp = requests.get(url, headers=headers, timeout=30, verify=False)
-        
-        print(f"Response Status: {resp.status_code}")
-        
+        url = f"{API_BASE_URL}?key={API_KEY}&type={api_type}&term={term}"
+        print(f"📡 API: {url}")
+        resp = requests.get(url, timeout=20)
         if resp.status_code == 200:
-            data = resp.json()
-            print(f"API Response: {json.dumps(data, indent=2)}")  # Debug print
-            return data
-        else:
-            return {"error": f"HTTP {resp.status_code}"}
+            return resp.json()
+        return {"error": f"HTTP {resp.status_code}"}
     except Exception as e:
-        print(f"API Error: {e}")
-        return {"error": str(e)[:50]}
+        return {"error": str(e)}
 
-# ============ FORMATTER - FIXED FOR ACTUAL API RESPONSE ============
+# ============ FORMATTERS ============
 def format_number_result(data, number):
+    """Single record - for /num command"""
     if data.get("error"):
         return f"❌ Error: {data['error']}"
     
-    # Try to extract data from different possible response structures
-    result_data = None
+    results = []
+    if data.get("data", {}).get("result", {}).get("results"):
+        results = data["data"]["result"]["results"]
+    elif data.get("data", {}).get("success") and isinstance(data.get("data"), dict):
+        if "result" in data["data"] and "results" in data["data"]["result"]:
+            results = data["data"]["result"]["results"]
     
-    # Case 1: Direct result
-    if "result" in data:
-        result_data = data["result"]
-    # Case 2: Data wrapper
-    elif "data" in data:
-        result_data = data["data"]
-        if isinstance(result_data, dict) and "result" in result_data:
-            result_data = result_data["result"]
-    # Case 3: Data is the result itself
-    else:
-        result_data = data
+    if not results:
+        return f"❌ No information found for {number}"
     
-    # If still no data, check if it's a list
-    if isinstance(result_data, list) and len(result_data) > 0:
-        result_data = result_data[0]
+    first = results[0]
+    total = len(results)
     
-    # If no valid data found
-    if not result_data or not isinstance(result_data, dict):
-        print(f"Could not extract data from: {data}")
-        return f"❌ No information found for {number}\n\nAPI Response format issue. Contact developer."
+    msg = f"📞 NUMBER INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Number: {number}\n\n"
+    msg += f"👤 Name: {first.get('NAME', first.get('name', 'N/A'))}\n\n"
+    msg += f"👨 Father: {first.get('fname', 'N/A')}\n\n"
+    msg += f"🆔 Aadhaar: {first.get('id', 'N/A')}\n\n"
+    msg += f"📞 Alternate: {first.get('alt', 'N/A')}\n\n"
+    msg += f"📡 Carrier: {first.get('circle', 'N/A')}\n\n"
+    msg += f"📧 Email: {first.get('email', 'N/A') or 'N/A'}\n\n"
+    msg += f"📍 Address: {(first.get('ADDRESS', first.get('address', 'N/A')))[:100]}\n\n"
     
-    # Extract fields with fallbacks
-    name = result_data.get('name') or result_data.get('NAME') or result_data.get('Name') or 'N/A'
-    fname = result_data.get('fname') or result_data.get('FNAME') or result_data.get('father_name') or result_data.get('FATHER') or 'N/A'
-    aadhaar = result_data.get('id') or result_data.get('ID') or result_data.get('aadhaar') or result_data.get('AADHAAR') or 'N/A'
-    alt = result_data.get('alt') or result_data.get('ALT') or result_data.get('alternate') or result_data.get('ALTERNATE') or 'N/A'
-    carrier = result_data.get('circle') or result_data.get('CIRCLE') or result_data.get('operator') or result_data.get('OPERATOR') or 'N/A'
-    email = result_data.get('email') or result_data.get('EMAIL') or result_data.get('Email') or 'N/A'
-    address = result_data.get('address') or result_data.get('ADDRESS') or result_data.get('Address') or 'N/A'
+    if total > 1:
+        msg += f"📚 Total Records: {total}\n"
+        msg += f"💡 Use /full {number} to see all\n\n"
     
-    # Format the response
-    result = f"📞 NUMBER INFO\n━━━━━━━━━━━━━━━━━━\n\n"
-    result += f"🎯 Number: {number}\n\n"
-    result += f"👤 Name: {name}\n\n"
-    result += f"👨 Father: {fname}\n\n"
-    result += f"🆔 Aadhaar: {aadhaar}\n\n"
-    result += f"📞 Alternate: {alt}\n\n"
-    result += f"📡 Carrier: {carrier}\n\n"
-    result += f"📧 Email: {email if email else 'N/A'}\n\n"
-    
-    if address and address != 'N/A':
-        if len(address) > 80:
-            address = address[:77] + '...'
-        result += f"📍 Address: {address}\n\n"
-    
-    result += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
-    return result
-
-# ============ ADMIN FUNCTIONS ============
-def show_admin_menu(chat_id):
-    keyboard = {
-        "inline_keyboard": [
-            [{"text": "📊 Dashboard", "callback_data": "admin_dashboard"}],
-            [{"text": "👥 Users List", "callback_data": "admin_users"}],
-            [{"text": "📜 Search History", "callback_data": "admin_history"}],
-            [{"text": "🔥 Trending", "callback_data": "admin_trending"}],
-            [{"text": "🗑️ Remove User", "callback_data": "admin_remove"}],
-            [{"text": "📢 Broadcast", "callback_data": "admin_broadcast"}],
-            [{"text": "🚪 Logout", "callback_data": "admin_logout"}]
-        ]
-    }
-    msg = f"🔐 <b>ADMIN PANEL</b>\n━━━━━━━━━━━━━━━━━━\n\nWelcome to admin panel!\n\nSelect an option below:"
-    send_msg(chat_id, msg, reply_markup=keyboard, parse_mode="HTML")
-
-def show_dashboard(chat_id):
-    total_users = len(user_data)
-    total_searches = sum(len(u.get("searches", [])) for u in user_data.values())
-    
-    msg = f"📊 ADMIN DASHBOARD\n━━━━━━━━━━━━━━━━━━\n\n"
-    msg += f"👥 Total Users: {total_users}\n"
-    msg += f"🔍 Total Searches: {total_searches}\n"
-    msg += f"📊 Trending Numbers: {len(trending_numbers)}\n"
-    msg += f"\n⚡ POWERED BY {DEVELOPER_USERNAME}"
-    send_msg(chat_id, msg)
-    show_admin_menu(chat_id)
-
-def show_users(chat_id):
-    if not user_data:
-        send_msg(chat_id, "❌ No users found!")
-        show_admin_menu(chat_id)
-        return
-    
-    msg = "👥 USER LIST\n━━━━━━━━━━━━━━━━━━\n\n"
-    for i, (cid, data) in enumerate(list(user_data.items())[:20], 1):
-        name = data.get("display_name", "Unknown")
-        searches = len(data.get("searches", []))
-        msg += f"{i}. {name}\n   🔍 {searches} searches\n   🆔 <code>{cid}</code>\n\n"
-    
-    if len(user_data) > 20:
-        msg += f"⚠️ Showing first 20 of {len(user_data)} users"
-    
-    msg += f"\n⚡ POWERED BY {DEVELOPER_USERNAME}"
-    send_msg(chat_id, msg)
-    show_admin_menu(chat_id)
-
-def show_all_history(chat_id):
-    all_searches = []
-    for cid, data in user_data.items():
-        for s in data.get("searches", []):
-            name = data.get("display_name", "Unknown")
-            all_searches.append(f"{name}: {s.get('term', 'N/A')} - {s.get('time', 'N/A')}")
-    
-    if all_searches:
-        msg = "📜 LAST 30 SEARCHES\n━━━━━━━━━━━━━━━━━━\n\n" + "\n".join(all_searches[-30:])
-        msg += f"\n\n⚡ POWERED BY {DEVELOPER_USERNAME}"
-        send_msg(chat_id, msg)
-    else:
-        send_msg(chat_id, "❌ No history found!")
-    show_admin_menu(chat_id)
-
-def get_trending():
-    if not trending_numbers:
-        return "📊 No trending data yet!"
-    
-    sorted_trend = sorted(trending_numbers.items(), key=lambda x: x[1], reverse=True)[:10]
-    msg = "🔥 TRENDING NUMBERS\n━━━━━━━━━━━━━━━━━━\n\n"
-    for i, (num, count) in enumerate(sorted_trend, 1):
-        msg += f"{i}. <code>{num}</code> - {count} searches\n"
-    
-    msg += f"\n⚡ POWERED BY {DEVELOPER_USERNAME}"
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
     return msg
 
-def remove_user(chat_id, target_id):
-    target = str(target_id).strip()
-    if target in user_data:
-        name = user_data[target].get("display_name", "Unknown")
-        del user_data[target]
-        save_data()
-        send_msg(chat_id, f"✅ Removed user '{name}'!")
-    else:
-        send_msg(chat_id, f"❌ User {target} not found!")
-    show_admin_menu(chat_id)
+def format_full_number_result(data, number):
+    """All records - for /full command"""
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    results = []
+    if data.get("data", {}).get("result", {}).get("results"):
+        results = data["data"]["result"]["results"]
+    elif data.get("data", {}).get("success") and isinstance(data.get("data"), dict):
+        if "result" in data["data"] and "results" in data["data"]["result"]:
+            results = data["data"]["result"]["results"]
+    
+    if not results:
+        return f"❌ No records found for {number}"
+    
+    total = len(results)
+    msg = f"📞 FULL NUMBER DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Number: {number}\n"
+    msg += f"📊 Total Records: {total}\n"
+    msg += f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    
+    for i, rec in enumerate(results[:20], 1):
+        msg += f"▶ Record {i}\n"
+        msg += f"   👤 Name: {rec.get('NAME', rec.get('name', 'N/A'))}\n"
+        msg += f"   👨 Father: {rec.get('fname', 'N/A')}\n"
+        msg += f"   🆔 Aadhaar: {rec.get('id', 'N/A')}\n"
+        msg += f"   📞 Alt: {rec.get('alt', 'N/A')}\n"
+        msg += f"   📡 Carrier: {rec.get('circle', 'N/A')}\n"
+        address = rec.get('ADDRESS', rec.get('address', 'N/A')) or 'N/A'
+        if len(address) > 80:
+            address = address[:77] + '...'
+        msg += f"   📍 Address: {address}\n\n"
+    
+    if total > 20:
+        msg += f"⚠️ Showing first 20 of {total} records\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
 
-def broadcast_msg(chat_id, msg_text):
-    if not user_data:
-        send_msg(chat_id, "❌ No users found!")
-        show_admin_menu(chat_id)
-        return
+def format_aadhaar_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
     
-    send_msg(chat_id, f"⏳ Sending to {len(user_data)} users...")
-    sent = 0
+    ration_data = data.get("data", {})
+    if not ration_data.get("success"):
+        return f"❌ No Ration Card found for Aadhaar: {term}"
     
-    for cid in user_data.keys():
-        try:
-            if send_msg(int(cid), f"📢 BROADCAST\n\n{msg_text}\n\n⚡ POWERED BY {DEVELOPER_USERNAME}"):
-                sent += 1
-            time.sleep(0.05)
-        except:
-            pass
+    details = ration_data.get("details", {})
+    card_info = details.get("card_info", {})
+    members = details.get("members", [])
     
-    send_msg(chat_id, f"✅ Sent to {sent}/{len(user_data)} users")
-    show_admin_menu(chat_id)
+    msg = f"🪪 RATION CARD INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Aadhaar: {term}\n\n"
+    msg += f"📇 Card ID: {ration_data.get('ration_card_id', 'N/A')}\n\n"
+    msg += f"📋 Card Type: {card_info.get('Card Type', 'N/A')}\n\n"
+    msg += f"📊 Scheme: {card_info.get('Scheme', 'N/A')}\n\n"
+    msg += f"📍 Address: {card_info.get('Address', 'N/A')}\n\n"
+    msg += f"🏠 District: {card_info.get('District', 'N/A')}\n\n"
+    msg += f"🗺️ State: {card_info.get('State', 'N/A')}\n\n"
+    msg += f"📅 Issue Date: {card_info.get('Issue Date', 'N/A')}\n\n"
+    msg += f"🏪 FPS: {card_info.get('Home FPS', 'N/A')}\n\n"
+    
+    if members:
+        msg += f"👥 FAMILY MEMBERS ({len(members)})\n"
+        msg += f"━━━━━━━━━━━━━━━━━━\n"
+        for i, member in enumerate(members[:5], 1):
+            msg += f"{i}. 👤 {member.get('member_name', 'N/A').upper()}\n"
+            msg += f"   👨‍👧 Relation: {member.get('relationship', 'N/A')}\n"
+            msg += f"   🔞 Gender: {member.get('gender', 'N/A')}\n"
+            msg += f"   🆔 UID: {member.get('uid_masked', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_vehicle_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    vehicle_data = data.get("data", {})
+    if not vehicle_data:
+        return f"❌ No information found for vehicle: {term.upper()}"
+    
+    msg = f"🚗 VEHICLE INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Vehicle: {term.upper()}\n\n"
+    msg += f"👤 Owner: {vehicle_data.get('Owner Name', 'N/A')}\n"
+    msg += f"🏭 Model: {vehicle_data.get('Model Name', 'N/A')}\n"
+    msg += f"📅 Reg Date: {vehicle_data.get('Registration Date', 'N/A')}\n"
+    msg += f"🏢 RTO: {vehicle_data.get('Registered RTO', 'N/A')}\n"
+    msg += f"📍 City: {vehicle_data.get('City Name', 'N/A')}\n"
+    msg += f"⛽ Fuel: {vehicle_data.get('Fuel Type', 'N/A')}\n"
+    msg += f"🏥 Insurance: {vehicle_data.get('Insurance Company', 'N/A')}\n"
+    msg += f"📅 Insurance Upto: {vehicle_data.get('Insurance Upto', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_gst_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    gst_data = data.get("data", {}).get("result", {}).get("data", {})
+    if not gst_data:
+        return f"❌ No information found for GST: {term}"
+    
+    msg = f"📦 GST INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 GSTIN: {term}\n\n"
+    msg += f"👤 Legal Name: {gst_data.get('LegalName', 'N/A')}\n"
+    msg += f"🏪 Trade Name: {gst_data.get('TradeName', 'N/A')}\n"
+    msg += f"📅 Reg Date: {gst_data.get('DtReg', 'N/A')}\n"
+    msg += f"📊 Status: {gst_data.get('Status', 'N/A')}\n"
+    msg += f"📍 Address: {gst_data.get('AddrLoc', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_ifsc_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    bank_data = data.get("data", {}).get("result", {})
+    if not bank_data:
+        return f"❌ No information found for IFSC: {term}"
+    
+    msg = f"🏦 IFSC INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 IFSC: {term}\n\n"
+    msg += f"🏛️ Bank: {bank_data.get('BANK', 'N/A')}\n"
+    msg += f"🏢 Branch: {bank_data.get('BRANCH', 'N/A')}\n"
+    msg += f"🏙️ City: {bank_data.get('CITY', 'N/A')}\n"
+    msg += f"📍 District: {bank_data.get('DISTRICT', 'N/A')}\n"
+    msg += f"🗺️ State: {bank_data.get('STATE', 'N/A')}\n"
+    msg += f"📬 Address: {bank_data.get('ADDRESS', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_ip_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    ip_data = data.get("data", {}).get("result", {})
+    if not ip_data:
+        return f"❌ No information found for IP: {term}"
+    
+    msg = f"🌐 IP INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 IP: {term}\n\n"
+    msg += f"📍 Location: {ip_data.get('City', 'N/A')}, {ip_data.get('Region', 'N/A')}\n"
+    msg += f"🌍 Country: {ip_data.get('Country', 'N/A')}\n"
+    msg += f"🏢 ISP: {ip_data.get('ISP', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_email_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    results = []
+    if data.get("data", {}).get("result", {}).get("results"):
+        results = data["data"]["result"]["results"]
+    
+    if not results:
+        return f"❌ No information found for Email: {term}"
+    
+    msg = f"📧 EMAIL INFO\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Email: {term}\n"
+    msg += f"📊 Total Records: {len(results)}\n\n"
+    
+    for i, rec in enumerate(results[:3], 1):
+        msg += f"▶ Record {i}\n"
+        msg += f"   👤 Name: {rec.get('NAME', 'N/A')}\n"
+        msg += f"   📞 Mobile: {rec.get('MOBILE', 'N/A')}\n"
+        msg += f"   📍 Address: {(rec.get('ADDRESS', 'N/A'))[:60]}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
+
+def format_tg_result(data, term):
+    if data.get("error"):
+        return f"❌ Error: {data['error']}"
+    
+    tg_result = data.get("data", {}).get("result", {})
+    if not tg_result.get("success"):
+        return f"❌ No information found for Telegram ID: {term}"
+    
+    msg = f"📱 TG TO NUMBER\n━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"🎯 Telegram ID: {term}\n"
+    msg += f"📞 Mobile: {tg_result.get('number', 'N/A')}\n"
+    msg += f"🌍 Country: {tg_result.get('country', 'N/A')}\n\n"
+    
+    msg += f"⚡ POWERED BY {DEVELOPER_USERNAME}"
+    return msg
 
 # ============ COMMAND HANDLERS ============
-def handle_num_command(chat_id, number):
-    if not number.isdigit() or len(number) != 10:
-        send_msg(chat_id, "❌ Please enter a valid 10-digit number!\n\nUsage: /num 9876543210")
+def handle_start(chat_id, user_id):
+    c1, c2 = check_both_channels(user_id)
+    if not (c1 and c2):
+        send_force_join_message(chat_id, c1, c2)
         return
     
-    send_msg(chat_id, f"🔍 Searching number: {number}...\n\n⏳ Please wait...")
-    result = call_number_api(number)
-    formatted_result = format_number_result(result, number)
-    send_msg(chat_id, formatted_result)
+    msg = f"""🎉 <b>WELCOME TO UNIVERSAL INFO BOT!</b> 🎉
+
+📌 <b>Available Commands:</b>
+
+🔹 <code>/num 9876543210</code> - Number details (1 record)
+🔹 <code>/full 9876543210</code> - All number records
+🔹 <code>/aadhaar 123412341234</code> - Ration Card info
+🔹 <code>/vehicle UP92P2111</code> - Vehicle info
+🔹 <code>/gst 10DJCPK4351Q1Z5</code> - GST info
+🔹 <code>/ifsc SBIN0000001</code> - Bank IFSC info
+🔹 <code>/ip 8.8.8.8</code> - IP geolocation
+🔹 <code>/email test@gmail.com</code> - Email lookup
+🔹 <code>/tg @username</code> - TG to Number
+
+⚡ POWERED BY {DEVELOPER_USERNAME}"""
+    
+    send_msg(chat_id, msg)
+
+def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
+    # Check force join first
+    c1, c2 = check_both_channels(user_id)
+    if not (c1 and c2):
+        send_force_join_message(chat_id, c1, c2)
+        return
+    
+    if not arg:
+        send_msg(chat_id, f"❌ Usage: /{cmd} <value>", reply_to=msg_id if is_group else None)
+        return
+    
+    if cmd == "num":
+        if not arg.isdigit() or len(arg) != 10:
+            send_msg(chat_id, "❌ Please enter a valid 10-digit number!", reply_to=msg_id if is_group else None)
+            return
+        send_msg(chat_id, f"🔍 Fetching number info for {arg}...")
+        result = call_api("NUMBER", arg)
+        send_msg(chat_id, format_number_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "full":
+        if not arg.isdigit() or len(arg) != 10:
+            send_msg(chat_id, "❌ Please enter a valid 10-digit number!", reply_to=msg_id if is_group else None)
+            return
+        send_msg(chat_id, f"🔍 Fetching all records for {arg}...")
+        result = call_api("NUMBER", arg)
+        full_msg = format_full_number_result(result, arg)
+        # Split if too long
+        if len(full_msg) > 4000:
+            for i in range(0, len(full_msg), 4000):
+                send_msg(chat_id, full_msg[i:i+4000], reply_to=msg_id if is_group and i==0 else None)
+        else:
+            send_msg(chat_id, full_msg, reply_to=msg_id if is_group else None)
+    
+    elif cmd == "aadhaar":
+        if not arg.isdigit() or len(arg) != 12:
+            send_msg(chat_id, "❌ Please enter a valid 12-digit Aadhaar number!", reply_to=msg_id if is_group else None)
+            return
+        send_msg(chat_id, f"🔍 Fetching Ration Card info for Aadhaar: {arg}...")
+        result = call_api("AADHAAR", arg)
+        send_msg(chat_id, format_aadhaar_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "vehicle":
+        send_msg(chat_id, f"🔍 Fetching vehicle info for {arg.upper()}...")
+        result = call_api("VEHICLE", arg)
+        send_msg(chat_id, format_vehicle_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "gst":
+        send_msg(chat_id, f"🔍 Fetching GST info for {arg.upper()}...")
+        result = call_api("GST", arg)
+        send_msg(chat_id, format_gst_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "ifsc":
+        send_msg(chat_id, f"🔍 Fetching IFSC info for {arg.upper()}...")
+        result = call_api("IFSC", arg)
+        send_msg(chat_id, format_ifsc_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "ip":
+        send_msg(chat_id, f"🔍 Fetching IP info for {arg}...")
+        result = call_api("IP", arg)
+        send_msg(chat_id, format_ip_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "email":
+        if '@' not in arg:
+            send_msg(chat_id, "❌ Please enter a valid email address!", reply_to=msg_id if is_group else None)
+            return
+        send_msg(chat_id, f"🔍 Fetching email info for {arg}...")
+        result = call_api("EMAIL", arg)
+        send_msg(chat_id, format_email_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    elif cmd == "tg":
+        send_msg(chat_id, f"🔍 Fetching number for {arg}...")
+        result = call_api("TGNUMBER", arg)
+        send_msg(chat_id, format_tg_result(result, arg), reply_to=msg_id if is_group else None)
+    
+    else:
+        send_msg(chat_id, f"❌ Unknown command: /{cmd}\n\nUse /start to see available commands.", reply_to=msg_id if is_group else None)
 
 # ============ MAIN HANDLER ============
 def handle_update(update):
@@ -460,222 +502,112 @@ def handle_update(update):
         callback = update["callback_query"]
         callback_id = callback["id"]
         chat_id = callback["message"]["chat"]["id"]
+        msg_id = callback["message"]["message_id"]
+        user_id = callback["from"]["id"]
         data = callback.get("data", "")
         
-        if data == "check_membership":
-            c1_joined, c2_joined = check_force_join_both(chat_id)
-            if c1_joined and c2_joined:
-                send_callback(chat_id, "✅ Both channels joined! Access granted.", callback_id)
-                
-                msg_id = callback["message"]["message_id"]
-                success_msg = (
-                    f"✅ <b>ACCESS GRANTED!</b> ✅\n\n"
-                    f"Thank you for joining both channels!\n\n"
-                    f"You can now use the bot.\n\n"
-                    f"Use /num 9876543210 to get number info!"
-                )
-                edit_message(chat_id, msg_id, success_msg)
-                
-                welcome_msg = (
-                    f"🎉 <b>WELCOME TO NUMBER INFO BOT!</b> 🎉\n\n"
-                    f"📞 <b>Use /num command to get number details!</b>\n\n"
-                    f"📌 <b>Usage:</b>\n"
-                    f"<code>/num 9876543210</code>\n\n"
-                    f"⚡ <b>Powered by {DEVELOPER_USERNAME}</b>"
-                )
-                send_msg(chat_id, welcome_msg, parse_mode="HTML")
+        if data == "verify_join":
+            c1, c2 = check_both_channels(user_id)
+            if c1 and c2:
+                send_callback(chat_id, "✅ Access granted! You can now use the bot.", callback_id)
+                edit_msg(chat_id, msg_id, f"✅ <b>ACCESS GRANTED!</b>\n\nWelcome! Use /start to see commands.\n\n⚡ POWERED BY {DEVELOPER_USERNAME}")
             else:
                 send_callback(chat_id, "❌ Please join both channels first!", callback_id)
-                
-                msg_id = callback["message"]["message_id"]
-                
                 status_msg = ""
-                buttons = []
-                
-                if not c1_joined:
-                    status_msg += f"\n❌ {CHANNEL_1_NAME} - Not joined"
-                    buttons.append([{"text": f"📢 JOIN {CHANNEL_1_NAME}", "url": CHANNEL_1_LINK}])
-                else:
+                if c1:
                     status_msg += f"\n✅ {CHANNEL_1_NAME} - Joined"
-                
-                if not c2_joined:
-                    status_msg += f"\n❌ {CHANNEL_2_NAME} - Not joined"
-                    buttons.append([{"text": f"📢 JOIN {CHANNEL_2_NAME}", "url": CHANNEL_2_LINK}])
                 else:
+                    status_msg += f"\n❌ {CHANNEL_1_NAME} - Not joined"
+                if c2:
                     status_msg += f"\n✅ {CHANNEL_2_NAME} - Joined"
+                else:
+                    status_msg += f"\n❌ {CHANNEL_2_NAME} - Not joined"
                 
-                buttons.append([{"text": "✅ Check Again", "callback_data": "check_membership"}])
-                
-                keyboard = {"inline_keyboard": buttons}
-                
-                msg_text = (
-                    f"⚠️ <b>ACCESS DENIED</b> ⚠️\n\n"
-                    f"You must join BOTH channels to use this bot!\n\n"
-                    f"📢 <b>Channels Status:</b>{status_msg}\n\n"
-                    f"👇 <b>Join both channels and click CHECK AGAIN</b>"
-                )
-                edit_message(chat_id, msg_id, msg_text, keyboard)
-            return
-        
-        # Admin callback handlers
-        if data == "admin_dashboard":
-            show_dashboard(chat_id)
-        elif data == "admin_users":
-            show_users(chat_id)
-        elif data == "admin_history":
-            show_all_history(chat_id)
-        elif data == "admin_trending":
-            send_msg(chat_id, get_trending())
-            show_admin_menu(chat_id)
-        elif data == "admin_remove":
-            send_msg(chat_id, "🗑️ Send user ID to remove:\nType /cancel to cancel")
-            admin_session[str(chat_id)] = {"remove_mode": True}
-        elif data == "admin_broadcast":
-            send_msg(chat_id, "📢 Send message to broadcast:\nType /cancel to cancel")
-            admin_session[str(chat_id)] = {"broadcast_mode": True}
-        elif data == "admin_logout":
-            if str(chat_id) in admin_session:
-                del admin_session[str(chat_id)]
-            send_msg(chat_id, "👋 Logged out from admin!")
-        
-        send_callback(chat_id, "", callback_id)
+                msg_text = f"⚠️ <b>ACCESS DENIED</b> ⚠️\n\nYou must join BOTH channels!\n\n📢 <b>Status:</b>{status_msg}\n\n👇 Join and click VERIFY again."
+                edit_msg(chat_id, msg_id, msg_text, get_force_join_keyboard(c1, c2))
         return
     
     if "message" not in update:
         return
     
     msg = update["message"]
-    if not isinstance(msg, dict):
-        return
-    
     chat_id = msg.get("chat", {}).get("id", 0)
     text = msg.get("text", "")
     user_id = msg.get("from", {}).get("id", 0)
-    user_info = msg.get("chat", {})
+    msg_id = msg.get("message_id", 0)
+    chat_type = msg.get("chat", {}).get("type", "private")
     
-    print(f"📨 {user_info.get('first_name', 'User')} | {text[:50] if text else 'No text'}")
+    is_group = chat_type in ["group", "supergroup"]
     
-    # ============ GROUP HANDLER ============
-    is_group = chat_id < 0
-    
-    if is_group:
-        if not text or not text.startswith("/"):
-            return
-    
-    # ============ FORCE JOIN CHECK ============
-    if not is_group or (is_group and text and text.startswith("/")):
-        if text != ADMIN_PASSWORD and text != "/admin" and not text.startswith("/admin "):
-            c1_joined, c2_joined = check_force_join_both(user_id)
-            if not (c1_joined and c2_joined):
-                send_force_join_message(chat_id, c1_joined, c2_joined)
-                return
-    
-    # ============ UPDATE STATS ============
-    update_stats(chat_id, user_info)
-    admin = is_admin(chat_id)
-    
-    # ============ HANDLE PENDING ADMIN LOGIN ============
-    if str(chat_id) in pending_admin_login:
-        if text == ADMIN_PASSWORD:
-            admin_session[str(chat_id)] = {}
-            del pending_admin_login[str(chat_id)]
-            send_msg(chat_id, "✅ <b>Admin access granted!</b>\n\nWelcome to admin panel!", parse_mode="HTML")
-            show_admin_menu(chat_id)
-        else:
-            send_msg(chat_id, f"❌ Wrong password!\n\nAccess denied.")
-            del pending_admin_login[str(chat_id)]
+    # In groups, only reply to commands
+    if is_group and not text.startswith("/"):
         return
     
-    # ============ ADMIN COMMAND ============
-    if text == "/admin":
-        if admin:
-            show_admin_menu(chat_id)
-        else:
-            pending_admin_login[str(chat_id)] = True
-            send_msg(chat_id, "🔐 <b>ADMIN LOGIN</b>\n━━━━━━━━━━━━━━━━━━\n\nPlease enter the admin password to continue.\n\nType /cancel to cancel.", parse_mode="HTML")
-        return
+    print(f"📨 {user_id}: {text[:50] if text else 'No text'}")
     
-    if text == "/cancel" and str(chat_id) in pending_admin_login:
-        del pending_admin_login[str(chat_id)]
-        send_msg(chat_id, "❌ Login cancelled!")
-        return
+    # Handle commands
+    if text.startswith("/start"):
+        handle_start(chat_id, user_id)
     
-    if text == ADMIN_PASSWORD and not admin:
-        admin_session[str(chat_id)] = {}
-        send_msg(chat_id, "✅ <b>Admin access granted!</b>\n\nType /admin to open admin panel.", parse_mode="HTML")
-        return
-    
-    # ============ ADMIN MODES ============
-    if admin and admin_session.get(str(chat_id), {}).get("remove_mode"):
-        if text == "/cancel":
-            admin_session[str(chat_id)]["remove_mode"] = False
-            send_msg(chat_id, "❌ Cancelled!")
-            show_admin_menu(chat_id)
-        elif text and text.isdigit():
-            remove_user(chat_id, text)
-            admin_session[str(chat_id)]["remove_mode"] = False
-        return
-    
-    if admin and admin_session.get(str(chat_id), {}).get("broadcast_mode"):
-        if text == "/cancel":
-            admin_session[str(chat_id)]["broadcast_mode"] = False
-            send_msg(chat_id, "❌ Cancelled!")
-            show_admin_menu(chat_id)
-        elif text:
-            broadcast_msg(chat_id, text)
-            admin_session[str(chat_id)]["broadcast_mode"] = False
-        return
-    
-    # ============ /num COMMAND ============
-    if text.startswith("/num"):
+    elif text.startswith("/num"):
         parts = text.split(maxsplit=1)
-        if len(parts) == 2:
-            handle_num_command(chat_id, parts[1])
-        else:
-            send_msg(chat_id, "❌ Usage: /num 9876543210")
-        return
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "num", arg, msg_id, is_group)
     
-    # ============ HELP / START ============
-    if text == "/start" or text == "/help":
-        welcome_msg = (
-            f"🎉 <b>WELCOME TO NUMBER INFO BOT!</b> 🎉\n\n"
-            f"📞 <b>Use /num command to get number details!</b>\n\n"
-            f"📌 <b>Usage:</b>\n"
-            f"<code>/num 9876543210</code>\n\n"
-            f"⚡ <b>Powered by {DEVELOPER_USERNAME}</b>"
-        )
-        send_msg(chat_id, welcome_msg, parse_mode="HTML")
-        return
+    elif text.startswith("/full"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "full", arg, msg_id, is_group)
     
-    # ============ IGNORE ANYTHING ELSE ============
-    if is_group:
-        return
+    elif text.startswith("/aadhaar"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "aadhaar", arg, msg_id, is_group)
     
-    if text and not text.startswith("/"):
-        send_msg(chat_id, "❌ Please use /num command!\n\nUsage: /num 9876543210")
+    elif text.startswith("/vehicle"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "vehicle", arg, msg_id, is_group)
+    
+    elif text.startswith("/gst"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "gst", arg, msg_id, is_group)
+    
+    elif text.startswith("/ifsc"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "ifsc", arg, msg_id, is_group)
+    
+    elif text.startswith("/ip"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "ip", arg, msg_id, is_group)
+    
+    elif text.startswith("/email"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "email", arg, msg_id, is_group)
+    
+    elif text.startswith("/tg"):
+        parts = text.split(maxsplit=1)
+        arg = parts[1] if len(parts) > 1 else ""
+        handle_command(chat_id, user_id, "tg", arg, msg_id, is_group)
+    
+    elif text.startswith("/"):
+        send_msg(chat_id, f"❌ Unknown command.\n\nUse /start to see available commands.", reply_to=msg_id if is_group else None)
 
 # ============ MAIN ============
 def main():
-    load_data()
     Thread(target=run_health_server, daemon=True).start()
     
-    print("=" * 60)
-    print("🤖 NUMBER INFO BOT STARTED")
-    print("=" * 60)
-    print(f"👥 Loaded users: {len(user_data)}")
+    print("=" * 50)
+    print("🤖 UNIVERSAL INFO BOT")
     print(f"👨‍💻 Powered by: {DEVELOPER_USERNAME}")
-    print(f"🔐 Admin Password: {ADMIN_PASSWORD}")
-    print("=" * 60)
-    print("📌 FORCE JOIN ENABLED FOR BOTH CHANNELS:")
-    print(f"   1. {CHANNEL_1_NAME} - {CHANNEL_1_LINK}")
-    print(f"   2. {CHANNEL_2_NAME} - {CHANNEL_2_LINK}")
-    print("=" * 60)
-    print("📌 ONLY /num COMMAND AVAILABLE")
-    print("📌 Usage: /num 9876543210")
-    print("📌 SSL Verification DISABLED for API calls")
-    print("📌 DEBUG MODE: API responses will be printed in console")
-    print("📌 Admin Access: Type /admin and enter password: #zyro2000")
-    print("=" * 60)
+    print(f"📢 Force Join: @modxpatel & @ajaaobkl")
+    print("=" * 50)
+    print("Commands: /num, /full, /aadhaar, /vehicle, /gst, /ifsc, /ip, /email, /tg")
+    print("=" * 50)
     
     global OFFSET
     while True:
