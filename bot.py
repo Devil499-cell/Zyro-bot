@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 UNIVERSAL INFO BOT
-Powered by @LEADER_JII
+Powered by @Zyro_ooo
 Force Join: @modxpatel & @ajaaobkl
 """
 
@@ -15,7 +15,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ================= CONFIGURATION =================
 BOT_TOKEN = "8757635805:AAGhawULq3hocLx7-bPCsiIVs5k2e5bV-EU"
-DEVELOPER_USERNAME = "@LEADER_JII"
+DEVELOPER_USERNAME = "@Zyro_ooo"
 
 # API Configuration
 API_BASE_URL = "https://all-sigma-pad-api-damo-5-day.vercel.app/api"
@@ -442,7 +442,6 @@ def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
         send_msg(chat_id, f"🔍 Fetching all records for {arg}...")
         result = call_api("NUMBER", arg)
         full_msg = format_full_number_result(result, arg)
-        # Split if too long
         if len(full_msg) > 4000:
             for i in range(0, len(full_msg), 4000):
                 send_msg(chat_id, full_msg[i:i+4000], reply_to=msg_id if is_group and i==0 else None)
