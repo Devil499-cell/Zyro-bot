@@ -17,8 +17,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 BOT_TOKEN = "8757635805:AAGhawULq3hocLx7-bPCsiIVs5k2e5bV-EU"
 DEVELOPER_USERNAME = "@Zyro_ooo"
 
-# API Configuration
-API_BASE_URL = "https://all-sigma-pad-api-damo-5-day.vercel.app/api"
+# API Configuration - ONLY NUMBER API CHANGED
+NUMBER_API_URL = "https://api.b77bf911.workers.dev/mobile?number="
+AADHAAR_API_URL = "http://aadhar-family.vercel.app/?apikey=toxicadmin&aadhaar="
+OTHER_API_BASE_URL = "https://all-sigma-pad-api-damo-5-day.vercel.app/api"
 API_KEY = "RAJAN99"
 
 # Channel info for FORCE JOIN
@@ -152,10 +154,33 @@ def send_force_join_message(chat_id, c1_joined, c2_joined):
     send_msg(chat_id, msg, get_force_join_keyboard(c1_joined, c2_joined))
 
 # ============ API CALL ============
-def call_api(api_type, term):
+def call_number_api(number):
+    """NEW NUMBER API"""
     try:
-        url = f"{API_BASE_URL}?key={API_KEY}&type={api_type}&term={term}"
-        print(f"📡 API: {url}")
+        url = f"{NUMBER_API_URL}{number}"
+        print(f"📡 Number API: {url}")
+        resp = requests.get(url, timeout=20)
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": f"HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def call_aadhaar_api(aadhaar):
+    try:
+        url = f"{AADHAAR_API_URL}{aadhaar}"
+        print(f"📡 Aadhaar API: {url}")
+        resp = requests.get(url, timeout=20)
+        if resp.status_code == 200:
+            return resp.json()
+        return {"error": f"HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def call_other_api(api_type, term):
+    try:
+        url = f"{OTHER_API_BASE_URL}?key={API_KEY}&type={api_type}&term={term}"
+        print(f"📡 Other API: {url}")
         resp = requests.get(url, timeout=20)
         if resp.status_code == 200:
             return resp.json()
@@ -169,28 +194,40 @@ def format_number_result(data, number):
     if data.get("error"):
         return f"❌ Error: {data['error']}"
     
-    results = []
-    if data.get("data", {}).get("result", {}).get("results"):
-        results = data["data"]["result"]["results"]
+    # Handle new API response structure
+    records = []
+    if "data" in data and "data" in data["data"]:
+        records = data["data"]["data"]
+    elif data.get("data", {}).get("result", {}).get("results"):
+        records = data["data"]["result"]["results"]
     elif data.get("data", {}).get("success") and isinstance(data.get("data"), dict):
         if "result" in data["data"] and "results" in data["data"]["result"]:
-            results = data["data"]["result"]["results"]
+            records = data["data"]["result"]["results"]
     
-    if not results:
-        return f"❌ No information found for {number}"
+    if not records:
+        # Try direct data
+        if isinstance(data.get("data"), dict):
+            first = data["data"]
+        else:
+            return f"❌ No information found for {number}"
+    else:
+        first = records[0]
     
-    first = results[0]
-    total = len(results)
+    total = len(records) if records else 1
     
     msg = f"📞 NUMBER INFO\n━━━━━━━━━━━━━━━━━━\n\n"
     msg += f"🎯 Number: {number}\n\n"
     msg += f"👤 Name: {first.get('NAME', first.get('name', 'N/A'))}\n\n"
-    msg += f"👨 Father: {first.get('fname', 'N/A')}\n\n"
-    msg += f"🆔 Aadhaar: {first.get('id', 'N/A')}\n\n"
-    msg += f"📞 Alternate: {first.get('alt', 'N/A')}\n\n"
-    msg += f"📡 Carrier: {first.get('circle', 'N/A')}\n\n"
+    msg += f"👨 Father: {first.get('fname', first.get('father', 'N/A'))}\n\n"
+    msg += f"🆔 Aadhaar: {first.get('id', first.get('aadhaar', 'N/A'))}\n\n"
+    msg += f"📞 Alternate: {first.get('alt', first.get('alternate', 'N/A'))}\n\n"
+    msg += f"📡 Carrier: {first.get('circle', first.get('carrier', 'N/A'))}\n\n"
     msg += f"📧 Email: {first.get('email', 'N/A') or 'N/A'}\n\n"
-    msg += f"📍 Address: {(first.get('ADDRESS', first.get('address', 'N/A')))[:100]}\n\n"
+    
+    address = first.get('ADDRESS', first.get('address', 'N/A')) or 'N/A'
+    if len(address) > 100:
+        address = address[:97] + '...'
+    msg += f"📍 Address: {address}\n\n"
     
     if total > 1:
         msg += f"📚 Total Records: {total}\n"
@@ -204,29 +241,35 @@ def format_full_number_result(data, number):
     if data.get("error"):
         return f"❌ Error: {data['error']}"
     
-    results = []
-    if data.get("data", {}).get("result", {}).get("results"):
-        results = data["data"]["result"]["results"]
+    # Handle new API response structure
+    records = []
+    if "data" in data and "data" in data["data"]:
+        records = data["data"]["data"]
+    elif data.get("data", {}).get("result", {}).get("results"):
+        records = data["data"]["result"]["results"]
     elif data.get("data", {}).get("success") and isinstance(data.get("data"), dict):
         if "result" in data["data"] and "results" in data["data"]["result"]:
-            results = data["data"]["result"]["results"]
+            records = data["data"]["result"]["results"]
     
-    if not results:
-        return f"❌ No records found for {number}"
+    if not records:
+        if isinstance(data.get("data"), dict):
+            records = [data["data"]]
+        else:
+            return f"❌ No records found for {number}"
     
-    total = len(results)
+    total = len(records)
     msg = f"📞 FULL NUMBER DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     msg += f"🎯 Number: {number}\n"
     msg += f"📊 Total Records: {total}\n"
     msg += f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     
-    for i, rec in enumerate(results[:20], 1):
+    for i, rec in enumerate(records[:20], 1):
         msg += f"▶ Record {i}\n"
         msg += f"   👤 Name: {rec.get('NAME', rec.get('name', 'N/A'))}\n"
-        msg += f"   👨 Father: {rec.get('fname', 'N/A')}\n"
-        msg += f"   🆔 Aadhaar: {rec.get('id', 'N/A')}\n"
-        msg += f"   📞 Alt: {rec.get('alt', 'N/A')}\n"
-        msg += f"   📡 Carrier: {rec.get('circle', 'N/A')}\n"
+        msg += f"   👨 Father: {rec.get('fname', rec.get('father', 'N/A'))}\n"
+        msg += f"   🆔 Aadhaar: {rec.get('id', rec.get('aadhaar', 'N/A'))}\n"
+        msg += f"   📞 Alt: {rec.get('alt', rec.get('alternate', 'N/A'))}\n"
+        msg += f"   📡 Carrier: {rec.get('circle', rec.get('carrier', 'N/A'))}\n"
         address = rec.get('ADDRESS', rec.get('address', 'N/A')) or 'N/A'
         if len(address) > 80:
             address = address[:77] + '...'
@@ -432,7 +475,7 @@ def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
             send_msg(chat_id, "❌ Please enter a valid 10-digit number!", reply_to=msg_id if is_group else None)
             return
         send_msg(chat_id, f"🔍 Fetching number info for {arg}...")
-        result = call_api("NUMBER", arg)
+        result = call_number_api(arg)
         send_msg(chat_id, format_number_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "full":
@@ -440,7 +483,7 @@ def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
             send_msg(chat_id, "❌ Please enter a valid 10-digit number!", reply_to=msg_id if is_group else None)
             return
         send_msg(chat_id, f"🔍 Fetching all records for {arg}...")
-        result = call_api("NUMBER", arg)
+        result = call_number_api(arg)
         full_msg = format_full_number_result(result, arg)
         if len(full_msg) > 4000:
             for i in range(0, len(full_msg), 4000):
@@ -453,27 +496,27 @@ def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
             send_msg(chat_id, "❌ Please enter a valid 12-digit Aadhaar number!", reply_to=msg_id if is_group else None)
             return
         send_msg(chat_id, f"🔍 Fetching Ration Card info for Aadhaar: {arg}...")
-        result = call_api("AADHAAR", arg)
+        result = call_aadhaar_api(arg)
         send_msg(chat_id, format_aadhaar_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "vehicle":
         send_msg(chat_id, f"🔍 Fetching vehicle info for {arg.upper()}...")
-        result = call_api("VEHICLE", arg)
+        result = call_other_api("VEHICLE", arg)
         send_msg(chat_id, format_vehicle_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "gst":
         send_msg(chat_id, f"🔍 Fetching GST info for {arg.upper()}...")
-        result = call_api("GST", arg)
+        result = call_other_api("GST", arg)
         send_msg(chat_id, format_gst_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "ifsc":
         send_msg(chat_id, f"🔍 Fetching IFSC info for {arg.upper()}...")
-        result = call_api("IFSC", arg)
+        result = call_other_api("IFSC", arg)
         send_msg(chat_id, format_ifsc_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "ip":
         send_msg(chat_id, f"🔍 Fetching IP info for {arg}...")
-        result = call_api("IP", arg)
+        result = call_other_api("IP", arg)
         send_msg(chat_id, format_ip_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "email":
@@ -481,12 +524,12 @@ def handle_command(chat_id, user_id, cmd, arg, msg_id=None, is_group=False):
             send_msg(chat_id, "❌ Please enter a valid email address!", reply_to=msg_id if is_group else None)
             return
         send_msg(chat_id, f"🔍 Fetching email info for {arg}...")
-        result = call_api("EMAIL", arg)
+        result = call_other_api("EMAIL", arg)
         send_msg(chat_id, format_email_result(result, arg), reply_to=msg_id if is_group else None)
     
     elif cmd == "tg":
         send_msg(chat_id, f"🔍 Fetching number for {arg}...")
-        result = call_api("TGNUMBER", arg)
+        result = call_other_api("TGNUMBER", arg)
         send_msg(chat_id, format_tg_result(result, arg), reply_to=msg_id if is_group else None)
     
     else:
