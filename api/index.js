@@ -1,167 +1,76 @@
-const express = require('express');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
+const axios = require('axios');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Rate Limiting
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: {
-    success: false,
-    error: 'Rate limit exceeded',
-    message: 'Too many requests. Please wait a minute.'
-  }
-});
-app.use('/api', limiter);
-
-// ========== CONFIG ==========
-const VALID_KEYS = {
-  'patel45': { tier: 'basic', limit: 50 },
-  'mynameiskhan': { tier: 'premium', limit: 200 },
-  'kingitachi18': { tier: 'admin', limit: 999 }
-};
-
-// ========== MAIN HANDLER ==========
 module.exports = async (req, res) => {
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  const { key, type, term } = req.query;
+
+  // Validate API key
+  if (key !== 'patel45') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid API key'
+    });
+  }
+
+  // Validate type
+  if (!type || type.toUpperCase() !== 'BOMBER') {
+    return res.status(400).json({
+      success: false,
+      message: 'Type must be BOMBER'
+    });
+  }
+
+  // Validate term format
+  if (!term || !term.includes('|')) {
+    return res.status(400).json({
+      message: 'Use term like number|count',
+      success: false
+    });
+  }
+
+  const [phoneNumber, count] = term.split('|');
+  
+  // Validate phone number
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid phone number. Must be 10 digits.'
+    });
+  }
+
+  const requestCount = parseInt(count);
+  if (isNaN(requestCount) || requestCount < 1 || requestCount > 100) {
+    return res.status(400).json({
+      success: false,
+      message: 'Count must be between 1 and 100'
+    });
   }
 
   try {
-    const { key, type, term } = req.method === 'GET' ? req.query : req.body;
+    // 🔥 ORIGINAL API CALL - YAHI SE DATA AAYEGA
+    const originalApiUrl = `https://all-sigma-pad-api-damo-5-day.vercel.app/api?key=RAJAN99&type=BOMBER&term=${term}`;
+    
+    const response = await axios.get(originalApiUrl);
+    const originalData = response.data;
 
-    // Validate API Key
-    if (!key || !VALID_KEYS[key]) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid API key',
-        developer: '@KINGITACHI18'
-      });
-    }
-
-    const keyInfo = VALID_KEYS[key];
-
-    // Validate Type
-    if (!type) {
-      return res.status(400).json({
-        success: false,
-        error: 'Type required',
-        message: 'Use type: BOMBER or FREEFIRE',
-        developer: '@KINGITACHI18'
-      });
-    }
-
-    // ===== BOMBER HANDLER =====
-    if (type.toUpperCase() === 'BOMBER') {
-      if (!term || !term.includes('|')) {
-        return res.status(400).json({
-          success: false,
-          message: 'Use term like number|count (e.g., 9876543210|10)',
-          developer: '@KINGITACHI18'
-        });
-      }
-
-      const [phone, count] = term.split('|');
-      const requestCount = parseInt(count);
-
-      if (!/^\d{10}$/.test(phone)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid phone number',
-          message: 'Phone number must be 10 digits'
-        });
-      }
-
-      if (isNaN(requestCount) || requestCount < 1 || requestCount > keyInfo.limit) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid count',
-          message: `Count must be between 1 and ${keyInfo.limit}`
-        });
-      }
-
-      // Simulate bombing
-      const results = await sendBombRequests(phone, requestCount);
-
-      return res.status(200).json({
-        success: true,
-        type: 'BOMBER',
-        developer: '@KINGITACHI18',
-        tier: keyInfo.tier,
-        target: phone,
-        requestedCount: requestCount,
-        ...results,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // ===== FREEFIRE HANDLER =====
-    if (type.toUpperCase() === 'FREEFIRE') {
-      if (!term || !/^\d+$/.test(term)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid FreeFire ID',
-          message: 'FreeFire ID must be numeric'
-        });
-      }
-
-      // Mock FreeFire data
-      return res.status(200).json({
-        success: true,
-        type: 'FREEFIRE',
-        developer: '@KINGITACHI18',
-        tier: keyInfo.tier,
-        data: {
-          accountId: term,
-          nickname: `Player_${term.slice(-4)}`,
-          level: Math.floor(Math.random() * 80) + 20,
-          rank: Math.floor(Math.random() * 50) + 1,
-          region: 'IND'
-        },
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // ===== INVALID TYPE =====
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid type',
-      message: 'Supported types: BOMBER, FREEFIRE',
-      developer: '@KINGITACHI18'
+    // 🔥 ORIGINAL RESPONSE + DEVELOPER NAME
+    res.status(200).json({
+      data: originalData.data || originalData, // Original API ka data
+      success: true,
+      term: term,
+      type: "BOMBER",
+      developer: "@KINGITACHI18"  // 👈 Aapka naam
     });
 
   } catch (error) {
-    return res.status(500).json({
+    // Agar original API fail ho toh
+    res.status(500).json({
       success: false,
-      error: 'Internal Server Error',
-      message: error.message,
-      developer: '@KINGITACHI18'
+      message: 'Original API service unavailable',
+      error: error.message,
+      developer: "@KINGITACHI18"
     });
   }
 };
-
-// ========== HELPER FUNCTION ==========
-async function sendBombRequests(phone, count) {
-  const details = [];
-  let successful = 0;
-  let failed = 0;
-
-  for (let i = 1; i <= count; i++) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const success = Math.random() < 0.85;
-    
-    if (success) {
-      successful++;
-      details.push({ attempt: i, status: 'success', message: 'SMS sent' });
-    } else {
-      failed++;
-      details.push({ attempt: i, status: 'failed', message: 'Service unavailable' });
-    }
-  }
-
-  return { successfulCount: successful, failedCount: failed, totalAttempts: count, details };
-}
